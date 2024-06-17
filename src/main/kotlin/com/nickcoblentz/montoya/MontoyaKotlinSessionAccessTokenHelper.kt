@@ -20,7 +20,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
             return
         }
 
-        _api.extension().setName("My Extension Name")
+        _api.extension().setName("Session Handling: Access Token Helper")
         _api.http().registerSessionHandlingAction(this)
         _api.logging().logToOutput("Loaded Successfully!")
         //val test: Serializable?;
