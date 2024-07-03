@@ -110,25 +110,26 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
 
         if(request.isInScope) {
             Logger.debugLog("is in scope")
-            if(actionData.macroRequestResponses().size==1) {
-                Logger.debugLog( "Found Macro Request/Response of size 1")
-                val response = actionData.macroRequestResponses()[0].response()
-                val responseString = response.toString();
-                Logger.debugLog("response string:\n$responseString")
-                val pattern = Pattern.compile(AccessTokenPatternSetting.currentValue, Pattern.CASE_INSENSITIVE);
-                val matcher = pattern.matcher(responseString);
-                while(matcher.find() && matcher.groupCount()>0)
-                {
-                    AccessToken = matcher.group(1)
-                    Logger.debugLog("Found Access Token: $AccessToken")
-                }
-                /*
+            if(actionData.macroRequestResponses().size>0) {
+                Logger.debugLog("Found Macro Request/Response")
+                for (httpReqRes in actionData.macroRequestResponses()) {
+                    val response = httpReqRes.response()
+                    val responseString = response.toString();
+                    Logger.debugLog("response string:\n$responseString")
+                    val pattern = Pattern.compile(AccessTokenPatternSetting.currentValue, Pattern.CASE_INSENSITIVE);
+                    val matcher = pattern.matcher(responseString);
+                    while (matcher.find() && matcher.groupCount() > 0) {
+                        AccessToken = matcher.group(1)
+                        Logger.debugLog("Found Access Token: $AccessToken")
+                    }
+                    /*
                 if (response.bodyToString().contains("\"access_token\":\"")) {
                     val bodyJson = JSONObject(response.bodyToString())
                     Logger?.debugLog( bodyJson.toString())
                     AccessToken = bodyJson.getString("access_token")
                     Logger?.debugLog( "Set new access token: $AccessToken")
                 }*/
+                }
             }
 
             Logger.debugLog( "Session Handling")
