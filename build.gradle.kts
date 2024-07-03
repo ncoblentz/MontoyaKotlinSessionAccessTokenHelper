@@ -1,13 +1,16 @@
 plugins {
     kotlin("jvm") version "1.9.23"
     id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("maven-publish")
 }
 
 group = "com.nickcoblentz.montoya"
-version = "1.0-SNAPSHOT"
+version = "0.1"
 
 repositories {
+    mavenLocal()
     mavenCentral()
+    maven(url="https://jitpack.io")
 }
 
 dependencies {
@@ -17,6 +20,8 @@ dependencies {
     //implementation("com.squareup.okhttp3:okhttp:4.12.0")
     //implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.json:json:+")
+    implementation("com.nickcoblentz.montoya:MontoyaLibrary:0.1.8")
+    implementation("com.github.milchreis:uibooster:1.21.1")
 
 }
 
