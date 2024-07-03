@@ -2,6 +2,9 @@ plugins {
     kotlin("jvm") version "1.9.23"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     id("maven-publish")
+    id("com.github.ben-manes.versions") version "0.51.0" //Gradle -> Help -> dependencyUpdates
+    id("org.owasp.dependencycheck") version "10.0.1" // owasp dependency-check -> dependencyCheckAnalyze
+
 }
 
 group = "com.nickcoblentz.montoya"
