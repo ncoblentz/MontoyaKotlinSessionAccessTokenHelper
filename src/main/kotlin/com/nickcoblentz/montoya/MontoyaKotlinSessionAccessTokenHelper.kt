@@ -68,7 +68,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         val extensionSetting = listOf(HeaderNameSetting,AccessTokenPatternSetting,HeaderValuePrefixSetting,HeaderValueSuffixSetting)
         val gen = GenericExtensionSettingsFormGenerator(extensionSetting, PluginName)
         val settingsFormBuilder: FormBuilder = gen.settingsFormBuilder
-        settingsFormBuilder.startRow().addTextArea(previewFullHeader()).setID("_calculate").setDisabled().endRow()
+        settingsFormBuilder.startRow().addTextArea("Preview",previewFullHeader()).setID("_calculate").setDisabled().endRow()
         gen.addSaveCallback(BiConsumer { formElement, form ->  form.getById("_calculate").value = previewFullHeader() })
         val settingsForm: Form = settingsFormBuilder.run()
 
