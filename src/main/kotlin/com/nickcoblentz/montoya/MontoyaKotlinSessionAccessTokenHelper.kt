@@ -1,9 +1,15 @@
 package com.nickcoblentz.montoya
 import burp.api.montoya.BurpExtension
 import burp.api.montoya.MontoyaApi
+import burp.api.montoya.http.handler.*
+import burp.api.montoya.http.message.HttpRequestResponse
 import burp.api.montoya.http.sessions.ActionResult
 import burp.api.montoya.http.sessions.SessionHandlingAction
 import burp.api.montoya.http.sessions.SessionHandlingActionData
+import burp.api.montoya.proxy.http.InterceptedResponse
+import burp.api.montoya.proxy.http.ProxyResponseHandler
+import burp.api.montoya.proxy.http.ProxyResponseReceivedAction
+import burp.api.montoya.proxy.http.ProxyResponseToBeSentAction
 import com.nickcoblentz.montoya.settings.*
 import de.milchreis.uibooster.model.Form
 import de.milchreis.uibooster.model.FormBuilder
@@ -13,12 +19,13 @@ import java.util.regex.Pattern
 
 //import kotlinx.serialization.Serializable;
 
-class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingAction {
+class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingAction, /*ProxyResponseHandler,*/ HttpHandler {
 //https://danaepp.com/writing-burp-extensions-in-kotlin
 
     private lateinit var HeaderValueSuffixSetting: StringExtensionSetting
     private lateinit var HeaderValuePrefixSetting: StringExtensionSetting
     private lateinit var HeaderNameSetting: StringExtensionSetting
+    private lateinit var PassiveNameSetting: BooleanExtensionSetting
     private lateinit var Api: MontoyaApi
     private var AccessToken = ""
     private lateinit var Logger: MontoyaLogger
@@ -65,7 +72,14 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
             "",
             ExtensionSettingSaveLocation.PROJECT
         )
-        val extensionSetting = listOf(HeaderNameSetting,AccessTokenPatternSetting,HeaderValuePrefixSetting,HeaderValueSuffixSetting)
+        PassiveNameSetting = BooleanExtensionSetting(
+            api,
+            "Use Passively For All Requests?",
+            "BKSATH.passive",
+            false,
+            ExtensionSettingSaveLocation.PROJECT
+        )
+        val extensionSetting = listOf(HeaderNameSetting,AccessTokenPatternSetting,HeaderValuePrefixSetting,HeaderValueSuffixSetting,PassiveNameSetting)
         val gen = GenericExtensionSettingsFormGenerator(extensionSetting, PluginName)
         val settingsFormBuilder: FormBuilder = gen.settingsFormBuilder
         settingsFormBuilder.startRow().addTextArea("Preview",previewFullHeader()).setID("_calculate").setDisabled().endRow()
@@ -73,6 +87,8 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         val settingsForm: Form = settingsFormBuilder.run()
 
         api.userInterface().registerContextMenuItemsProvider(ExtensionSettingsContextMenuProvider(api, settingsForm))
+        //api.proxy().registerResponseHandler(this);
+        api.http().registerHttpHandler(this)
         Logger.debugLog( "Finished")
 
 
@@ -103,37 +119,32 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         Logger.debugLog(this.javaClass.name, "performAction")
         var request = actionData.request()
 
-        if(request.isInScope) {
-            Logger.debugLog("is in scope")
-            if(actionData.macroRequestResponses().size>0) {
-                Logger.debugLog("Found Macro Request/Response")
-                for (httpReqRes in actionData.macroRequestResponses()) {
-                    val response = httpReqRes.response()
-                    val responseString = response.toString()
-                    //Logger.debugLog("response string:\n$responseString")
-                    val pattern = Pattern.compile(AccessTokenPatternSetting.currentValue, Pattern.CASE_INSENSITIVE)
-                    val matcher = pattern.matcher(responseString)
-                    while (matcher.find() && matcher.groupCount() > 0) {
-                        AccessToken = matcher.group(1)
-                        Logger.debugLog("Found Access Token: $AccessToken")
-                    }
-                    /*
-                if (response.bodyToString().contains("\"access_token\":\"")) {
-                    val bodyJson = JSONObject(response.bodyToString())
-                    Logger?.debugLog( bodyJson.toString())
-                    AccessToken = bodyJson.getString("access_token")
-                    Logger?.debugLog( "Set new access token: $AccessToken")
-                }*/
-                }
-            }
-
-            Logger.debugLog( "Session Handling")
-            if (AccessToken.isNotEmpty()) {
-                Logger.debugLog( "Not Empty, adding header: ${HeaderNameSetting.currentValue}: ${previewHeaderValue()}")
-                request = actionData.request().withUpdatedHeader(HeaderNameSetting.currentValue, previewHeaderValue())
+        if(actionData.macroRequestResponses().size>0) {
+            Logger.debugLog("Found Macro Request/Response")
+            for (httpReqRes in actionData.macroRequestResponses()) {
+                if(httpReqRes.hasResponse())
+                    updateAccessTokenIfFound(httpReqRes.response().toString());
             }
         }
+
+        Logger.debugLog( "Session Handling")
+        if (AccessToken.isNotEmpty()) {
+            Logger.debugLog( "Not Empty, adding header: ${HeaderNameSetting.currentValue}: ${previewHeaderValue()}")
+            request = actionData.request().withUpdatedHeader(HeaderNameSetting.currentValue, previewHeaderValue())
+        }
+
         return ActionResult.actionResult(request, actionData.annotations())
+    }
+
+    fun updateAccessTokenIfFound(responseString: String)
+    {
+        //Logger.debugLog("response string:\n$responseString")
+        val pattern = Pattern.compile(AccessTokenPatternSetting.currentValue, Pattern.CASE_INSENSITIVE)
+        val matcher = pattern.matcher(responseString)
+        while (matcher.find() && matcher.groupCount() > 0) {
+            AccessToken = matcher.group(1)
+            Logger.debugLog("Found Access Token: $AccessToken")
+        }
     }
 
     private fun previewFullHeader() : String {
@@ -149,5 +160,28 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
             headerBuilder.append(AccessToken)
         headerBuilder.append(HeaderValueSuffixSetting.currentValue)
         return headerBuilder.toString()
+    }
+/*
+    override fun handleResponseReceived(interceptedResponse: InterceptedResponse?): ProxyResponseReceivedAction {
+        interceptedResponse?.let {
+            updateAccessTokenIfFound(it.toString());
+        }
+        return ProxyResponseReceivedAction.continueWith(interceptedResponse);
+    }
+
+    override fun handleResponseToBeSent(interceptedResponse: InterceptedResponse?): ProxyResponseToBeSentAction {
+        return ProxyResponseToBeSentAction.continueWith(interceptedResponse);
+    }
+*/
+    override fun handleHttpRequestToBeSent(requestToBeSent: HttpRequestToBeSent?): RequestToBeSentAction {
+        return RequestToBeSentAction.continueWith(requestToBeSent)
+    }
+
+    override fun handleHttpResponseReceived(responseReceived: HttpResponseReceived?): ResponseReceivedAction {
+        if(PassiveNameSetting.currentValue)
+            responseReceived?.let {
+                updateAccessTokenIfFound(it.toString());
+            }
+        return ResponseReceivedAction.continueWith(responseReceived)
     }
 }

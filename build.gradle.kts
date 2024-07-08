@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.nickcoblentz.montoya"
-version = "0.2"
+version = "0.3"
 
 repositories {
     mavenLocal()
