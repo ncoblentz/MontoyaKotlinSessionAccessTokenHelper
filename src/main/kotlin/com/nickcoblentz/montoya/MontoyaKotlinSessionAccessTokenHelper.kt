@@ -4,13 +4,11 @@ import burp.api.montoya.MontoyaApi
 import burp.api.montoya.http.sessions.ActionResult
 import burp.api.montoya.http.sessions.SessionHandlingAction
 import burp.api.montoya.http.sessions.SessionHandlingActionData
-import com.nickcoblentz.montoya.settings.ExtensionSetting
-import com.nickcoblentz.montoya.settings.ExtensionSettingSaveLocation
-import com.nickcoblentz.montoya.settings.ExtensionSettingsContextMenuProvider
-import com.nickcoblentz.montoya.settings.ExtensionSettingsFormGenerator
+import com.nickcoblentz.montoya.settings.*
 import de.milchreis.uibooster.model.Form
 import de.milchreis.uibooster.model.FormBuilder
 import de.milchreis.uibooster.model.FormElement
+import java.util.function.BiConsumer
 import java.util.regex.Pattern
 
 //import kotlinx.serialization.Serializable;
@@ -18,14 +16,14 @@ import java.util.regex.Pattern
 class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingAction {
 //https://danaepp.com/writing-burp-extensions-in-kotlin
 
-    private lateinit var HeaderValueSuffixSetting: ExtensionSetting
-    private lateinit var HeaderValuePrefixSetting: ExtensionSetting
-    private lateinit var HeaderNameSetting: ExtensionSetting
+    private lateinit var HeaderValueSuffixSetting: StringExtensionSetting
+    private lateinit var HeaderValuePrefixSetting: StringExtensionSetting
+    private lateinit var HeaderNameSetting: StringExtensionSetting
     private lateinit var Api: MontoyaApi
     private var AccessToken = ""
     private lateinit var Logger: MontoyaLogger
     private val PluginName: String = "Session Handling: Access Token Helper"
-    private lateinit var AccessTokenPatternSetting: ExtensionSetting
+    private lateinit var AccessTokenPatternSetting: StringExtensionSetting
 
 
     override fun initialize(api: MontoyaApi?) {
@@ -39,28 +37,28 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         Logger.debugLog( "Plugin Starting...")
         api.extension().setName(PluginName)
         api.http().registerSessionHandlingAction(this)
-        AccessTokenPatternSetting = ExtensionSetting(
+        AccessTokenPatternSetting = StringExtensionSetting(
             api,
             "Access Token RegEx Pattern",
             "BKSATH.pattern",
             "\"access_token\" *: *\"([^\"]+)\"",
             ExtensionSettingSaveLocation.PROJECT
         )
-        HeaderNameSetting = ExtensionSetting(
+        HeaderNameSetting = StringExtensionSetting(
             api,
             "Name of Header",
             "BKSATH.header",
             "Authorization",
             ExtensionSettingSaveLocation.PROJECT
         )
-        HeaderValuePrefixSetting = ExtensionSetting(
+        HeaderValuePrefixSetting = StringExtensionSetting(
             api,
             "Header Value Prefix (include your space)",
             "BKSATH.prefix",
             "Bearer ",
             ExtensionSettingSaveLocation.PROJECT
         )
-        HeaderValueSuffixSetting = ExtensionSetting(
+        HeaderValueSuffixSetting = StringExtensionSetting(
             api,
             "Header Value Suffix (include your space)",
             "BKSATH.suffix",
@@ -68,13 +66,10 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
             ExtensionSettingSaveLocation.PROJECT
         )
         val extensionSetting = listOf(HeaderNameSetting,AccessTokenPatternSetting,HeaderValuePrefixSetting,HeaderValueSuffixSetting)
-        val gen = ExtensionSettingsFormGenerator(extensionSetting, PluginName)
+        val gen = GenericExtensionSettingsFormGenerator(extensionSetting, PluginName)
         val settingsFormBuilder: FormBuilder = gen.settingsFormBuilder
-        //settingsFormBuilder.startRow().addLabel(previewFullHeader()).setID("calculate").endRow()
-        settingsFormBuilder.setChangeListener { element: FormElement<*>?, value: Any?, form: Form ->
-
-            form.getById("Change").value = previewFullHeader()
-        }
+        settingsFormBuilder.startRow().addTextArea(previewFullHeader()).setID("_calculate").setDisabled().endRow()
+        gen.addSaveCallback(BiConsumer { formElement, form ->  form.getById("_calculate").value = previewFullHeader() })
         val settingsForm: Form = settingsFormBuilder.run()
 
         api.userInterface().registerContextMenuItemsProvider(ExtensionSettingsContextMenuProvider(api, settingsForm))
