@@ -21,6 +21,7 @@ The __Session Access Token Helper Burp Extension__:
 This mode of operation will watch for access tokens and apply them to any request covered by your session handling rule as described below
 
 - In the session handling rules within Burp Suite's settings, Add a new rule, and add the action: "Invoke a Burp Extension". Choose "Access Token Helper"
+- In the Session Access Token Helper's settings, check mark "Use Passively For All Requests?"`
 - Configure your scope and tools you want it to apply to
 
 ### Using the plugin with a Login Macro
