@@ -130,7 +130,10 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         Logger.debugLog( "Session Handling")
         if (AccessToken.isNotEmpty()) {
             Logger.debugLog( "Not Empty, adding header: ${HeaderNameSetting.currentValue}: ${previewHeaderValue()}")
-            request = actionData.request().withUpdatedHeader(HeaderNameSetting.currentValue, previewHeaderValue())
+            if(actionData.request().hasHeader(HeaderNameSetting.currentValue))
+                request = actionData.request().withUpdatedHeader(HeaderNameSetting.currentValue, previewHeaderValue())
+            else
+                request = actionData.request().withAddedHeader(HeaderNameSetting.currentValue, previewHeaderValue())
         }
 
         return ActionResult.actionResult(request, actionData.annotations())
