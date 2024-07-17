@@ -1,9 +1,8 @@
 plugins {
-    kotlin("jvm") version "1.9.23"
+    kotlin("jvm") version "2.0.0"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     id("maven-publish")
     id("com.github.ben-manes.versions") version "0.51.0" //Gradle -> Help -> dependencyUpdates
-    id("org.owasp.dependencycheck") version "10.0.1" // owasp dependency-check -> dependencyCheckAnalyze
 
 }
 
@@ -13,7 +12,12 @@ version = "0.3"
 repositories {
     mavenLocal()
     mavenCentral()
-    maven(url="https://jitpack.io")
+    maven(url="https://jitpack.io") {
+        content {
+            includeGroup("com.github.milchreis")
+            includeGroup("com.github.ncoblentz")
+        }
+    }
 }
 
 dependencies {
@@ -23,7 +27,8 @@ dependencies {
     //implementation("com.squareup.okhttp3:okhttp:4.12.0")
     //implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.json:json:+")
-    implementation("com.nickcoblentz.montoya:MontoyaLibrary:0.1.10")
+    //implementation("com.nickcoblentz.montoya:MontoyaLibrary:0.1.12")
+    implementation("com.github.ncoblentz:BurpMontoyaLibrary:0.1.12")
     implementation("com.github.milchreis:uibooster:1.21.1")
 
 }

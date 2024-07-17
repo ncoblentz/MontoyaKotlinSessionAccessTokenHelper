@@ -112,7 +112,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
     }
 */
     override fun name(): String {
-        return "Access Token Helper"
+        return PluginName
     }
 
     override fun performAction(actionData: SessionHandlingActionData): ActionResult {
