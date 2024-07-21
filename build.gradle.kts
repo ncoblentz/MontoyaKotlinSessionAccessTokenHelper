@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.nickcoblentz.montoya"
-version = "0.3"
+version = "0.3.1"
 
 repositories {
     mavenLocal()
@@ -27,8 +27,8 @@ dependencies {
     //implementation("com.squareup.okhttp3:okhttp:4.12.0")
     //implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.json:json:+")
-    //implementation("com.nickcoblentz.montoya:MontoyaLibrary:0.1.12")
-    implementation("com.github.ncoblentz:BurpMontoyaLibrary:0.1.12")
+    implementation("com.github.ncoblentz:BurpMontoyaLibrary:0.1.13")
+    //implementation("com.nickcoblentz.montoya:MontoyaLibrary:0.1.13")
     implementation("com.github.milchreis:uibooster:1.21.1")
 
 }

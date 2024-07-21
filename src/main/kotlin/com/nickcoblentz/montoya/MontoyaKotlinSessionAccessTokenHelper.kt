@@ -40,7 +40,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         }
         Api=api
 
-        Logger = MontoyaLogger(api, MontoyaLogger.DebugLogLevel)
+        Logger = MontoyaLogger(api, LogLevel.DEBUG)
         Logger.debugLog( "Plugin Starting...")
         api.extension().setName(PluginName)
         api.http().registerSessionHandlingAction(this)
@@ -81,9 +81,9 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         )
         val extensionSetting = listOf(HeaderNameSetting,AccessTokenPatternSetting,HeaderValuePrefixSetting,HeaderValueSuffixSetting,PassiveNameSetting)
         val gen = GenericExtensionSettingsFormGenerator(extensionSetting, PluginName)
-        val settingsFormBuilder: FormBuilder = gen.settingsFormBuilder
+        val settingsFormBuilder: FormBuilder = gen.getSettingsFormBuilder()
         settingsFormBuilder.startRow().addTextArea("Preview",previewFullHeader()).setID("_calculate").setDisabled().endRow()
-        gen.addSaveCallback(BiConsumer { formElement, form ->  form.getById("_calculate").value = previewFullHeader() })
+        gen.addSaveCallback { formElement, form -> form.getById("_calculate").value = previewFullHeader() }
         val settingsForm: Form = settingsFormBuilder.run()
 
         api.userInterface().registerContextMenuItemsProvider(ExtensionSettingsContextMenuProvider(api, settingsForm))
