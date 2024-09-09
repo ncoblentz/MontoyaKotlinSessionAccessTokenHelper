@@ -87,6 +87,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         val settingsForm: Form = settingsFormBuilder.run()
 
         api.userInterface().registerContextMenuItemsProvider(ExtensionSettingsContextMenuProvider(api, settingsForm))
+        api.extension().registerUnloadingHandler(ExtensionSettingsUnloadHandler(settingsForm))
         //api.proxy().registerResponseHandler(this);
         api.http().registerHttpHandler(this)
         Logger.debugLog( "Finished")
