@@ -3,6 +3,7 @@ import burp.api.montoya.BurpExtension
 import burp.api.montoya.MontoyaApi
 import burp.api.montoya.http.handler.*
 import burp.api.montoya.http.message.HttpRequestResponse
+import burp.api.montoya.http.message.requests.HttpRequest
 import burp.api.montoya.http.sessions.ActionResult
 import burp.api.montoya.http.sessions.SessionHandlingAction
 import burp.api.montoya.http.sessions.SessionHandlingActionData
@@ -26,6 +27,8 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
     private lateinit var HeaderValuePrefixSetting: StringExtensionSetting
     private lateinit var HeaderNameSetting: StringExtensionSetting
     private lateinit var PassiveNameSetting: BooleanExtensionSetting
+    private lateinit var IgnoreEndpointsSetting: ListStringExtensionSetting
+    private lateinit var ShouldIgnoreEndpointsSetting: BooleanExtensionSetting
     private lateinit var Api: MontoyaApi
     private var AccessToken = ""
     private lateinit var Logger: MontoyaLogger
@@ -79,7 +82,21 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
             false,
             ExtensionSettingSaveLocation.PROJECT
         )
-        val extensionSetting = listOf(HeaderNameSetting,AccessTokenPatternSetting,HeaderValuePrefixSetting,HeaderValueSuffixSetting,PassiveNameSetting)
+        IgnoreEndpointsSetting = ListStringExtensionSetting(
+            api,
+            "Ignore the following endpoints when applyting the token",
+            "BKSATH.ignoreendpoints",
+            mutableListOf<String>(),
+            ExtensionSettingSaveLocation.PROJECT
+        )
+        ShouldIgnoreEndpointsSetting = BooleanExtensionSetting(
+            api,
+            "Ignore those endpoints?",
+            "BKSATH.shouldignore",
+            false,
+            ExtensionSettingSaveLocation.PROJECT
+        )
+        val extensionSetting = listOf(HeaderNameSetting,AccessTokenPatternSetting,HeaderValuePrefixSetting,HeaderValueSuffixSetting,PassiveNameSetting,IgnoreEndpointsSetting,ShouldIgnoreEndpointsSetting)
         val gen = GenericExtensionSettingsFormGenerator(extensionSetting, PluginName)
         val settingsFormBuilder: FormBuilder = gen.getSettingsFormBuilder()
         settingsFormBuilder.startRow().addTextArea("Preview",previewFullHeader()).setID("_calculate").setDisabled().endRow()
@@ -129,7 +146,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         }
 
         Logger.debugLog( "Session Handling")
-        if (AccessToken.isNotEmpty()) {
+        if (AccessToken.isNotEmpty() && !urlShouldBeIgnored(request)) {
             Logger.debugLog( "Not Empty, adding header: ${HeaderNameSetting.currentValue}: ${previewHeaderValue()}")
             if(actionData.request().hasHeader(HeaderNameSetting.currentValue))
                 request = actionData.request().withUpdatedHeader(HeaderNameSetting.currentValue, previewHeaderValue())
@@ -138,6 +155,10 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         }
 
         return ActionResult.actionResult(request, actionData.annotations())
+    }
+
+    fun urlShouldBeIgnored(request: HttpRequest) : Boolean {
+        return ShouldIgnoreEndpointsSetting.currentValue && IgnoreEndpointsSetting.currentValue.contains(request.url())
     }
 
     fun updateAccessTokenIfFound(responseString: String)
