@@ -158,7 +158,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
     }
 
     fun urlShouldBeIgnored(request: HttpRequest) : Boolean {
-        return ShouldIgnoreEndpointsSetting.currentValue && IgnoreEndpointsSetting.currentValue.contains(request.url())
+        return ShouldIgnoreEndpointsSetting.currentValue && IgnoreEndpointsSetting.currentValue.isNotEmpty() && IgnoreEndpointsSetting.currentValue.contains(request.url())
     }
 
     fun updateAccessTokenIfFound(responseString: String)
