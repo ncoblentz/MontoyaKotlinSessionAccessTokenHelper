@@ -2,20 +2,13 @@ package com.nickcoblentz.montoya
 import burp.api.montoya.BurpExtension
 import burp.api.montoya.MontoyaApi
 import burp.api.montoya.http.handler.*
-import burp.api.montoya.http.message.HttpRequestResponse
 import burp.api.montoya.http.message.requests.HttpRequest
 import burp.api.montoya.http.sessions.ActionResult
 import burp.api.montoya.http.sessions.SessionHandlingAction
 import burp.api.montoya.http.sessions.SessionHandlingActionData
-import burp.api.montoya.proxy.http.InterceptedResponse
-import burp.api.montoya.proxy.http.ProxyResponseHandler
-import burp.api.montoya.proxy.http.ProxyResponseReceivedAction
-import burp.api.montoya.proxy.http.ProxyResponseToBeSentAction
 import com.nickcoblentz.montoya.settings.*
 import de.milchreis.uibooster.model.Form
 import de.milchreis.uibooster.model.FormBuilder
-import de.milchreis.uibooster.model.FormElement
-import java.util.function.BiConsumer
 import java.util.regex.Pattern
 
 //import kotlinx.serialization.Serializable;
@@ -23,9 +16,12 @@ import java.util.regex.Pattern
 class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingAction, /*ProxyResponseHandler,*/ HttpHandler {
 //https://danaepp.com/writing-burp-extensions-in-kotlin
 
-    private lateinit var HeaderValueSuffixSetting: StringExtensionSetting
-    private lateinit var HeaderValuePrefixSetting: StringExtensionSetting
-    private lateinit var HeaderNameSetting: StringExtensionSetting
+    private lateinit var HeaderValueSuffixSetting1: StringExtensionSetting
+    private lateinit var HeaderValuePrefixSetting1: StringExtensionSetting
+    private lateinit var HeaderNameSetting1: StringExtensionSetting
+    private lateinit var HeaderValueSuffixSetting2: StringExtensionSetting
+    private lateinit var HeaderValuePrefixSetting2: StringExtensionSetting
+    private lateinit var HeaderNameSetting2: StringExtensionSetting
     private lateinit var PassiveNameSetting: BooleanExtensionSetting
     private lateinit var IgnoreEndpointsSetting: ListStringExtensionSetting
     private lateinit var ShouldIgnoreEndpointsSetting: BooleanExtensionSetting
@@ -47,6 +43,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         Logger.debugLog( "Plugin Starting...")
         api.extension().setName(PluginName)
         api.http().registerSessionHandlingAction(this)
+
         AccessTokenPatternSetting = StringExtensionSetting(
             api,
             "Access Token RegEx Pattern",
@@ -54,24 +51,45 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
             "\"access_token\" *: *\"([^\"]+)\"",
             ExtensionSettingSaveLocation.PROJECT
         )
-        HeaderNameSetting = StringExtensionSetting(
+        HeaderNameSetting1 = StringExtensionSetting(
             api,
-            "Name of Header",
+            "Name of First Header",
             "BKSATH.header",
             "Authorization",
             ExtensionSettingSaveLocation.PROJECT
         )
-        HeaderValuePrefixSetting = StringExtensionSetting(
+        HeaderValuePrefixSetting1 = StringExtensionSetting(
             api,
-            "Header Value Prefix (include your space)",
+            "First Header Value Prefix (include your space)",
             "BKSATH.prefix",
             "Bearer ",
             ExtensionSettingSaveLocation.PROJECT
         )
-        HeaderValueSuffixSetting = StringExtensionSetting(
+        HeaderValueSuffixSetting1 = StringExtensionSetting(
             api,
-            "Header Value Suffix (include your space)",
+            "First Header Value Suffix (include your space)",
             "BKSATH.suffix",
+            "",
+            ExtensionSettingSaveLocation.PROJECT
+        )
+        HeaderNameSetting2 = StringExtensionSetting(
+            api,
+            "Name of Second Header",
+            "BKSATH.header2",
+            "Authorization",
+            ExtensionSettingSaveLocation.PROJECT
+        )
+        HeaderValuePrefixSetting2 = StringExtensionSetting(
+            api,
+            "Second Header Value Prefix (include your space)",
+            "BKSATH.prefix2",
+            "Bearer ",
+            ExtensionSettingSaveLocation.PROJECT
+        )
+        HeaderValueSuffixSetting2 = StringExtensionSetting(
+            api,
+            "Second Header Value Suffix (include your space)",
+            "BKSATH.suffix2",
             "",
             ExtensionSettingSaveLocation.PROJECT
         )
@@ -96,7 +114,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
             false,
             ExtensionSettingSaveLocation.PROJECT
         )
-        val extensionSetting = listOf(HeaderNameSetting,AccessTokenPatternSetting,HeaderValuePrefixSetting,HeaderValueSuffixSetting,PassiveNameSetting,IgnoreEndpointsSetting,ShouldIgnoreEndpointsSetting)
+        val extensionSetting = listOf(HeaderNameSetting1,HeaderValuePrefixSetting1,HeaderValueSuffixSetting1,HeaderNameSetting2,HeaderValuePrefixSetting2,HeaderValueSuffixSetting2,AccessTokenPatternSetting,PassiveNameSetting,IgnoreEndpointsSetting,ShouldIgnoreEndpointsSetting)
         val gen = GenericExtensionSettingsFormGenerator(extensionSetting, PluginName)
         val settingsFormBuilder: FormBuilder = gen.getSettingsFormBuilder()
         settingsFormBuilder.startRow().addTextArea("Preview",previewFullHeader()).setID("_calculate").setDisabled().endRow()
@@ -147,11 +165,24 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
 
         Logger.debugLog( "Session Handling")
         if (AccessToken.isNotEmpty() && !urlShouldBeIgnored(request)) {
-            Logger.debugLog( "Not Empty, adding header: ${HeaderNameSetting.currentValue}: ${previewHeaderValue()}")
-            if(actionData.request().hasHeader(HeaderNameSetting.currentValue))
-                request = actionData.request().withUpdatedHeader(HeaderNameSetting.currentValue, previewHeaderValue())
-            else
-                request = actionData.request().withAddedHeader(HeaderNameSetting.currentValue, previewHeaderValue())
+            if(HeaderNameSetting1.currentValue.isNotBlank()) {
+                Logger.debugLog("Access Token and Header1 Not Empty, adding header: ${HeaderNameSetting1.currentValue}: ${previewHeaderValue()}")
+                if (actionData.request().hasHeader(HeaderNameSetting1.currentValue))
+                    request =
+                        actionData.request().withUpdatedHeader(HeaderNameSetting1.currentValue, previewHeaderValue())
+                else
+                    request =
+                        actionData.request().withAddedHeader(HeaderNameSetting1.currentValue, previewHeaderValue())
+            }
+            if(HeaderNameSetting2.currentValue.isNotBlank()) {
+                Logger.debugLog("Access Token and Header2 Not Empty, adding header: ${HeaderNameSetting1.currentValue}: ${previewHeaderValue()}")
+                if (actionData.request().hasHeader(HeaderNameSetting2.currentValue))
+                    request =
+                        actionData.request().withUpdatedHeader(HeaderNameSetting2.currentValue, previewHeaderValue())
+                else
+                    request =
+                        actionData.request().withAddedHeader(HeaderNameSetting2.currentValue, previewHeaderValue(true))
+            }
         }
 
         return ActionResult.actionResult(request, actionData.annotations())
@@ -173,17 +204,28 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
     }
 
     private fun previewFullHeader() : String {
-        return "${HeaderNameSetting.currentValue}: ${previewHeaderValue()}"
+        return "${HeaderNameSetting2.currentValue}: ${previewHeaderValue()}\r\n${HeaderNameSetting1.currentValue}: ${previewHeaderValue()}"
     }
 
-    private fun previewHeaderValue() : String {
+    private fun previewHeaderValue(secondHeader : Boolean = false) : String {
         val headerBuilder = StringBuilder()
-        headerBuilder.append(HeaderValuePrefixSetting.currentValue)
-        if(AccessToken.isEmpty())
-            headerBuilder.append("ACCESS TOKEN HERE")
-        else
-            headerBuilder.append(AccessToken)
-        headerBuilder.append(HeaderValueSuffixSetting.currentValue)
+        if(secondHeader) {
+            headerBuilder.append(HeaderValuePrefixSetting2.currentValue)
+            if(AccessToken.isEmpty())
+                headerBuilder.append("ACCESS TOKEN HERE")
+            else
+                headerBuilder.append(AccessToken)
+            headerBuilder.append(HeaderValueSuffixSetting2.currentValue)
+        }
+        else {
+            headerBuilder.append(HeaderValuePrefixSetting1.currentValue)
+            if(AccessToken.isEmpty())
+                headerBuilder.append("ACCESS TOKEN HERE")
+            else
+                headerBuilder.append(AccessToken)
+            headerBuilder.append(HeaderValueSuffixSetting1.currentValue)
+        }
+
         return headerBuilder.toString()
     }
 /*
