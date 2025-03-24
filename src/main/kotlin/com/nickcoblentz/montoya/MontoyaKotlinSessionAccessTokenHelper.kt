@@ -152,9 +152,10 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
     }
 
     override fun performAction(actionData: SessionHandlingActionData): ActionResult {
-        Logger.debugLog(this.javaClass.name, "performAction")
+        Logger.debugLog(this.javaClass.name, "=======================\nperformAction")
         var request = actionData.request()
 
+        Logger.debugLog("---------------------------\nStage 1: Checking for Macros")
         if(actionData.macroRequestResponses().size>0) {
             Logger.debugLog("Found Macro Request/Response")
             for (httpReqRes in actionData.macroRequestResponses()) {
@@ -162,29 +163,38 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
                     updateAccessTokenIfFound(httpReqRes.response().toString());
             }
         }
+        else
+            Logger.debugLog("No macro found")
 
-        Logger.debugLog( "Session Handling")
+        Logger.debugLog("------------------------\nStage 2: Session Handling")
         if (AccessToken.isNotEmpty() && !urlShouldBeIgnored(request)) {
+            Logger.debugLog("Access token non-empty: ${AccessToken}, valid URL (not ignore url): ${request.url()}")
             if(HeaderNameSetting1.currentValue.isNotBlank()) {
                 Logger.debugLog("Access Token and Header1 Not Empty, adding header: ${HeaderNameSetting1.currentValue}: ${previewHeaderValue()}")
-                if (actionData.request().hasHeader(HeaderNameSetting1.currentValue))
+                if (request.hasHeader(HeaderNameSetting1.currentValue))
                     request =
-                        actionData.request().withUpdatedHeader(HeaderNameSetting1.currentValue, previewHeaderValue())
+                        request.withUpdatedHeader(HeaderNameSetting1.currentValue, previewHeaderValue())
                 else
                     request =
-                        actionData.request().withAddedHeader(HeaderNameSetting1.currentValue, previewHeaderValue())
+                        request.withAddedHeader(HeaderNameSetting1.currentValue, previewHeaderValue())
             }
+            else
+                Logger.debugLog("Skipping ${HeaderNameSetting1.currentValue} header, empty")
+
             if(HeaderNameSetting2.currentValue.isNotBlank()) {
-                Logger.debugLog("Access Token and Header2 Not Empty, adding header: ${HeaderNameSetting1.currentValue}: ${previewHeaderValue()}")
-                if (actionData.request().hasHeader(HeaderNameSetting2.currentValue))
+                Logger.debugLog("Access Token and Header2 Not Empty, adding header: ${HeaderNameSetting2.currentValue}: ${previewHeaderValue()}")
+                if (request.hasHeader(HeaderNameSetting2.currentValue))
                     request =
-                        actionData.request().withUpdatedHeader(HeaderNameSetting2.currentValue, previewHeaderValue())
+                        request.withUpdatedHeader(HeaderNameSetting2.currentValue, previewHeaderValue(true))
                 else
                     request =
-                        actionData.request().withAddedHeader(HeaderNameSetting2.currentValue, previewHeaderValue(true))
+                        request.withAddedHeader(HeaderNameSetting2.currentValue, previewHeaderValue(true))
             }
+            else
+                Logger.debugLog("Skipping ${HeaderNameSetting2.currentValue} header, empty")
         }
 
+        Logger.debugLog("Done, returning")
         return ActionResult.actionResult(request, actionData.annotations())
     }
 
