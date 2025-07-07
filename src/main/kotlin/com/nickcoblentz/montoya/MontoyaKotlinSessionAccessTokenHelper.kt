@@ -20,7 +20,6 @@ import java.awt.Component
 import java.util.Optional
 import java.util.regex.Pattern
 import javax.swing.JMenuItem
-import kotlin.getValue
 import kotlin.properties.ReadOnlyProperty
 
 
@@ -228,28 +227,22 @@ class SettingsDelegateManager(private var settingsPanelBuilder : SettingsPanelBu
         return ReadOnlyProperty { _, _ -> settingsPanel?.getBoolean(name) ?: false}
     }
 
-    fun finished() {
-        settingsPanel = settingsPanelBuilder.build()
+    fun buildSettingsPanel() : SettingsPanelWithData {
+        val settingsPanelTemp = settingsPanelBuilder.build()
+        settingsPanel = settingsPanelTemp
+        return settingsPanelTemp
     }
 }
 
 
 class MyExtensionSettings {
-    private val settingsManager : SettingsDelegateManager
-    val settingsPanel : SettingsPanelWithData
+    val settingsPanelBuilder : SettingsPanelBuilder = SettingsPanelBuilder.settingsPanel()
+        .withPersistence(SettingsPanelPersistence.PROJECT_SETTINGS)
+        .withTitle("Session Token Helper")
+        .withDescription("Configure the session handling settings.")
+        .withKeywords("Session", "JWT", "Authorization", "Token", "Macro")
 
-    init {
-        val settingsPanelBuilder = SettingsPanelBuilder.settingsPanel()
-            .withPersistence(SettingsPanelPersistence.PROJECT_SETTINGS)
-            .withTitle("Session Token Helper")
-            .withDescription("Configure the session handling settings.")
-            .withKeywords("Session", "JWT", "Authorization", "Token", "Macro")
-            //.withSettings(*settingsManager.settingDefinitions.toTypedArray())
-        settingsManager = SettingsDelegateManager(settingsPanelBuilder)
-        settingsManager.finished()
-        settingsPanel = settingsManager.settingsPanel!!
-    }
-
+    private val settingsManager = SettingsDelegateManager(settingsPanelBuilder)
 
     val accessTokenPatternSetting: String by settingsManager.stringSetting("Access Token RegEx Pattern", "\"access_token\" *: *\"([^\"]+)\"")
     val headerName1Setting: String by settingsManager.stringSetting("Header Name 1", "Authorization")
@@ -262,133 +255,6 @@ class MyExtensionSettings {
 
     val passiveSetting: Boolean by settingsManager.booleanSetting("Use Passively For All Requests?", false)
     val shouldIgnoreEndpointsSetting: Boolean by settingsManager.booleanSetting("Should Ignore Endpoints?", false)
-}
 
-//
-//class MyExtensionSettings() {
-//    private val _accessTokenPatternSetting by lazy {
-//        SettingsPanelSetting.stringSetting(
-//            SettingsName.ACCESS_TOKEN_PATTERN.value,
-//            "\"access_token\" *: *\"([^\"]+)\""
-//        )
-//    }
-//
-//    val accessTokenPatternSetting : String
-//        get() = settingsPanel.getString(SettingsName.ACCESS_TOKEN_PATTERN.value)
-//
-//
-//    private val _headerName1Setting by lazy {
-//        SettingsPanelSetting.stringSetting(
-//            SettingsName.HEADER_NAME_1.value,
-//            "Authorization"
-//        )
-//    }
-//
-//    val headerName1Setting : String
-//        get() = myExtesionSettions.headerName1Setting
-//
-//    private val _headerValuePrefix1Setting by lazy {
-//        SettingsPanelSetting.stringSetting(
-//            SettingsName.HEADER_VALUE_PREFIX_1.value,
-//            "Bearer "
-//        )
-//    }
-//
-//    val headerValuePrefix1Setting : String
-//        get() = settingsPanel.getString(SettingsName.HEADER_VALUE_PREFIX_1.value)
-//
-//    private val _headerValueSuffix1Setting by lazy {
-//        SettingsPanelSetting.stringSetting(
-//            SettingsName.HEADER_VALUE_SUFFIX_1.value,
-//            ""
-//        )
-//    }
-//
-//    val headerValueSuffix1Setting : String
-//        get() = settingsPanel.getString(SettingsName.HEADER_VALUE_SUFFIX_1.value)
-//
-//    private val _headerName2Setting by lazy {
-//        SettingsPanelSetting.stringSetting(
-//            SettingsName.HEADER_NAME_2.value,
-//            "Authorization"
-//        )
-//    }
-//
-//    val headerName2Setting : String
-//        get() = myExtesionSettions.headerName2Setting
-//
-//    private val _headerValuePrefix2Setting by lazy {
-//        SettingsPanelSetting.stringSetting(
-//            SettingsName.HEADER_VALUE_PREFIX_2.value,
-//            "Bearer "
-//        )
-//    }
-//
-//    val headerValuePrefix2Setting : String
-//        get() = settingsPanel.getString(SettingsName.HEADER_VALUE_PREFIX_2.value)
-//
-//    private val _headerValueSuffix2Setting by lazy {
-//        SettingsPanelSetting.stringSetting(
-//            SettingsName.HEADER_VALUE_SUFFIX_2.value,
-//            ""
-//        )
-//    }
-//
-//    val headerValueSuffix2Setting : String
-//        get() = settingsPanel.getString(SettingsName.HEADER_VALUE_SUFFIX_2.value)
-//
-//    private val _passiveSetting  by lazy {
-//        SettingsPanelSetting.booleanSetting(
-//            SettingsName.PASSIVE_NAME.value,
-//            false
-//        )
-//    }
-//
-//    val passiveSetting : Boolean
-//        get() = settingsPanel.getBoolean(SettingsName.PASSIVE_NAME.value)
-//
-//    private val _ignoreEndpointsSetting by lazy {
-//        SettingsPanelSetting.stringSetting(
-//            SettingsName.IGNORE_ENDPOINTS.value,
-//            ""
-//        )
-//    }
-//
-//    val ignoreEndpointsSetting : String
-//        get() = settingsPanel.getString(SettingsName.IGNORE_ENDPOINTS.value)
-//
-//    private val _shouldIgnoreEndpointsSetting by lazy {
-//        SettingsPanelSetting.booleanSetting(
-//            SettingsName.SHOULD_IGNORE_ENDPOINTS.value,
-//            false
-//        )
-//    }
-//
-//    val shouldIgnoreEndpointsSetting : Boolean
-//        get() = settingsPanel.getBoolean(SettingsName.SHOULD_IGNORE_ENDPOINTS.value)
-//
-//    val settingsPanel by lazy {
-//        SettingsPanelBuilder.settingsPanel()
-//            .withPersistence(SettingsPanelPersistence.PROJECT_SETTINGS)
-//            .withTitle("Session Token Helper")
-//            .withDescription("Configure the session handling settings.")
-//            .withKeywords("Session", "JWT", "Authorization", "Token", "Macro")
-//            .withSettings(
-//                _accessTokenPatternSetting,
-//                _headerName1Setting,
-//                _headerValuePrefix1Setting,
-//                _headerValueSuffix1Setting,
-//                _headerName2Setting,
-//                _headerValuePrefix2Setting,
-//                _headerValueSuffix2Setting,
-//                _passiveSetting,
-//                _ignoreEndpointsSetting,
-//                _shouldIgnoreEndpointsSetting
-//            )
-//            .build()
-//
-//
-//    }
-//
-//
-//}
+    val settingsPanel = settingsManager.buildSettingsPanel()
+}
