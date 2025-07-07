@@ -2,263 +2,306 @@ package com.nickcoblentz.montoya
 import burp.api.montoya.BurpExtension
 import burp.api.montoya.MontoyaApi
 import burp.api.montoya.http.handler.*
+import burp.api.montoya.http.message.HttpRequestResponse
 import burp.api.montoya.http.message.requests.HttpRequest
 import burp.api.montoya.http.sessions.ActionResult
 import burp.api.montoya.http.sessions.SessionHandlingAction
 import burp.api.montoya.http.sessions.SessionHandlingActionData
-import com.nickcoblentz.montoya.settings.*
-import de.milchreis.uibooster.model.Form
-import de.milchreis.uibooster.model.FormBuilder
+import burp.api.montoya.ui.contextmenu.AuditIssueContextMenuEvent
+import burp.api.montoya.ui.contextmenu.ContextMenuEvent
+import burp.api.montoya.ui.contextmenu.ContextMenuItemsProvider
+import burp.api.montoya.ui.contextmenu.MessageEditorHttpRequestResponse
+import burp.api.montoya.ui.contextmenu.WebSocketContextMenuEvent
+import burp.api.montoya.ui.settings.SettingsPanelBuilder
+import burp.api.montoya.ui.settings.SettingsPanelPersistence
+import burp.api.montoya.ui.settings.SettingsPanelSetting
+import java.awt.Component
+import java.util.Optional
 import java.util.regex.Pattern
+import javax.swing.JMenuItem
 
-//import kotlinx.serialization.Serializable;
 
-class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingAction, /*ProxyResponseHandler,*/ HttpHandler {
-//https://danaepp.com/writing-burp-extensions-in-kotlin
+enum class SettingsName (val value: String) {
+    HEADER_NAME_1("Header Name 1"),
+    HEADER_VALUE_PREFIX_1("Header Value Prefix 1"),
+    HEADER_VALUE_SUFFIX_1("Header Value Suffix 1"),
+    HEADER_NAME_2("Header Name 2"),
+    HEADER_VALUE_PREFIX_2("Header Value Prefix 2"),
+    HEADER_VALUE_SUFFIX_2("Header Value Suffix 2"),
+    ACCESS_TOKEN_PATTERN("Access Token RegEx Pattern"),
+    PASSIVE_NAME("Use Passively For All Requests?"),
+    IGNORE_ENDPOINTS("Regex of URLs to Ignore when applying the token"),
+    SHOULD_IGNORE_ENDPOINTS("Should Ignore Endpoints?")
+}
 
-    private lateinit var HeaderValueSuffixSetting1: StringExtensionSetting
-    private lateinit var HeaderValuePrefixSetting1: StringExtensionSetting
-    private lateinit var HeaderNameSetting1: StringExtensionSetting
-    private lateinit var HeaderValueSuffixSetting2: StringExtensionSetting
-    private lateinit var HeaderValuePrefixSetting2: StringExtensionSetting
-    private lateinit var HeaderNameSetting2: StringExtensionSetting
-    private lateinit var PassiveNameSetting: BooleanExtensionSetting
-    private lateinit var IgnoreEndpointsSetting: ListStringExtensionSetting
-    private lateinit var ShouldIgnoreEndpointsSetting: BooleanExtensionSetting
-    private lateinit var Api: MontoyaApi
-    private var AccessToken = ""
-    private lateinit var Logger: MontoyaLogger
-    private val PluginName: String = "Session Handling: Access Token Helper"
-    private lateinit var AccessTokenPatternSetting: StringExtensionSetting
+class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingAction, ContextMenuItemsProvider, HttpHandler {
 
+    private lateinit var messageEditorRequestResponse: Optional<MessageEditorHttpRequestResponse>
+    private lateinit var selectedRequestResponses: MutableList<HttpRequestResponse>
+    private lateinit var montoyaApi: MontoyaApi
+    private var accessToken = ""
+    private lateinit var logger: MontoyaLogger
+
+    private val testJMenu = JMenuItem("Test It")
+
+
+    companion object {
+        const val PLUGIN_NAME: String = "Session Handling: Access Token Helper"
+
+    }
+
+    private val accessTokenPatternSetting by lazy  {
+        SettingsPanelSetting.stringSetting(
+        SettingsName.ACCESS_TOKEN_PATTERN.value,
+        "\"access_token\" *: *\"([^\"]+)\""
+        )
+    }
+
+    private val headerName1Setting by lazy {
+        SettingsPanelSetting.stringSetting(
+            SettingsName.HEADER_NAME_1.value,
+            "Authorization"
+        )
+    }
+
+    private val headerValuePrefix1Setting by lazy {
+        SettingsPanelSetting.stringSetting(
+            SettingsName.HEADER_VALUE_PREFIX_1.value,
+            "Bearer "
+        )
+    }
+    private val headerValueSuffix1Setting by lazy {
+        SettingsPanelSetting.stringSetting(
+            SettingsName.HEADER_VALUE_SUFFIX_1.value,
+            ""
+        )
+    }
+
+    private val headerName2Setting by lazy {
+        SettingsPanelSetting.stringSetting(
+            SettingsName.HEADER_NAME_2.value,
+            "Authorization"
+        )
+    }
+
+    private val headerValuePrefix2Setting by lazy {
+        SettingsPanelSetting.stringSetting(
+            SettingsName.HEADER_VALUE_PREFIX_2.value,
+            "Bearer "
+        )
+    }
+
+    private val headerValueSuffix2Setting by lazy {
+        SettingsPanelSetting.stringSetting(
+            SettingsName.HEADER_VALUE_SUFFIX_2.value,
+            ""
+        )
+    }
+
+    private val passiveSetting  by lazy {
+        SettingsPanelSetting.booleanSetting(
+            SettingsName.PASSIVE_NAME.value,
+            false
+        )
+    }
+
+    private val ignoreEndpointsSetting by lazy {
+        SettingsPanelSetting.stringSetting(
+            SettingsName.IGNORE_ENDPOINTS.value,
+            ""
+        )
+    }
+
+    private val shouldIgnoreEndpointsSetting by lazy {
+        SettingsPanelSetting.booleanSetting(
+            SettingsName.SHOULD_IGNORE_ENDPOINTS.value,
+            false
+        )
+    }
+
+    private val settingsPanel by lazy {
+        SettingsPanelBuilder.settingsPanel()
+            .withPersistence(SettingsPanelPersistence.PROJECT_SETTINGS)
+            .withTitle("Session Token Helper")
+            .withDescription("Configure the session handling settings.")
+            .withKeywords("Session", "JWT", "Authorization", "Token", "Macro")
+            .withSettings(
+                accessTokenPatternSetting,
+                headerName1Setting,
+                headerValuePrefix1Setting,
+                headerValueSuffix1Setting,
+                headerName2Setting,
+                headerValuePrefix2Setting,
+                headerValueSuffix2Setting,
+                passiveSetting,
+                ignoreEndpointsSetting,
+                shouldIgnoreEndpointsSetting
+            )
+            .build()
+    }
 
     override fun initialize(api: MontoyaApi?) {
         if(api==null)
         {
             return
         }
-        Api=api
+        montoyaApi=api
 
-        Logger = MontoyaLogger(api, LogLevel.DEBUG)
-        Logger.debugLog( "Plugin Starting...")
-        api.extension().setName(PluginName)
+        logger = MontoyaLogger(api, LogLevel.DEBUG)
+        logger.debugLog( "Plugin Starting...")
+        api.extension().setName(PLUGIN_NAME)
         api.http().registerSessionHandlingAction(this)
 
-        AccessTokenPatternSetting = StringExtensionSetting(
-            api,
-            "Access Token RegEx Pattern",
-            "BKSATH.pattern",
-            "\"access_token\" *: *\"([^\"]+)\"",
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        HeaderNameSetting1 = StringExtensionSetting(
-            api,
-            "Name of First Header",
-            "BKSATH.header",
-            "Authorization",
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        HeaderValuePrefixSetting1 = StringExtensionSetting(
-            api,
-            "First Header Value Prefix (include your space)",
-            "BKSATH.prefix",
-            "Bearer ",
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        HeaderValueSuffixSetting1 = StringExtensionSetting(
-            api,
-            "First Header Value Suffix (include your space)",
-            "BKSATH.suffix",
-            "",
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        HeaderNameSetting2 = StringExtensionSetting(
-            api,
-            "Name of Second Header",
-            "BKSATH.header2",
-            "Authorization",
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        HeaderValuePrefixSetting2 = StringExtensionSetting(
-            api,
-            "Second Header Value Prefix (include your space)",
-            "BKSATH.prefix2",
-            "Bearer ",
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        HeaderValueSuffixSetting2 = StringExtensionSetting(
-            api,
-            "Second Header Value Suffix (include your space)",
-            "BKSATH.suffix2",
-            "",
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        PassiveNameSetting = BooleanExtensionSetting(
-            api,
-            "Use Passively For All Requests?",
-            "BKSATH.passive",
-            false,
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        IgnoreEndpointsSetting = ListStringExtensionSetting(
-            api,
-            "Ignore the following endpoints when applyting the token",
-            "BKSATH.ignoreendpoints",
-            mutableListOf<String>(),
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        ShouldIgnoreEndpointsSetting = BooleanExtensionSetting(
-            api,
-            "Ignore those endpoints?",
-            "BKSATH.shouldignore",
-            false,
-            ExtensionSettingSaveLocation.PROJECT
-        )
-        val extensionSetting = listOf(HeaderNameSetting1,HeaderValuePrefixSetting1,HeaderValueSuffixSetting1,HeaderNameSetting2,HeaderValuePrefixSetting2,HeaderValueSuffixSetting2,AccessTokenPatternSetting,PassiveNameSetting,IgnoreEndpointsSetting,ShouldIgnoreEndpointsSetting)
-        val gen = GenericExtensionSettingsFormGenerator(extensionSetting, PluginName)
-        val settingsFormBuilder: FormBuilder = gen.getSettingsFormBuilder()
-        settingsFormBuilder.startRow().addTextArea("Preview",previewFullHeader()).setID("_calculate").setDisabled().endRow()
-        gen.addSaveCallback { formElement, form -> form.getById("_calculate").value = previewFullHeader() }
-        val settingsForm: Form = settingsFormBuilder.run()
+        api.userInterface().registerSettingsPanel(settingsPanel)
 
-        api.userInterface().registerContextMenuItemsProvider(ExtensionSettingsContextMenuProvider(api, settingsForm))
-        api.extension().registerUnloadingHandler(ExtensionSettingsUnloadHandler(settingsForm))
-        //api.proxy().registerResponseHandler(this);
+        api.userInterface().registerContextMenuItemsProvider(this)
+
         api.http().registerHttpHandler(this)
-        Logger.debugLog( "Finished")
 
-
-    }
-
-/*
-    override fun handleResponseReceived(interceptedResponse: InterceptedResponse?): ProxyResponseReceivedAction {
-        return ProxyResponseReceivedAction.continueWith(interceptedResponse)
-    }
-
-    override fun handleResponseToBeSent(interceptedResponse: InterceptedResponse): ProxyResponseToBeSentAction {
-        if(interceptedResponse.request().isInScope) {
-            if (interceptedResponse.bodyToString().contains("\"access_token\":\"")) {
-                val bodyJson = JSONObject(interceptedResponse.bodyToString())
-                _api?.logging()?.logToOutput(bodyJson.toString())
-                _accessToken = bodyJson.getString("access_token")
-                _api?.logging()?.logToOutput("Set new access token: $_accessToken")
+        testJMenu.addActionListener {actionEvent ->
+            val requests = mutableListOf<HttpRequest>()
+            messageEditorRequestResponse.ifPresent { requestResponse ->
+                requests.add(requestResponse.requestResponse().request())
             }
+            if(selectedRequestResponses.isNotEmpty()) {
+                requests.addAll(selectedRequestResponses.map { it.request() })
+            }
+
+            requests.forEach { request ->
+                montoyaApi.logging().logToOutput("=================${request.url()}=================")
+                montoyaApi.logging().logToOutput(updateRequestWithAccessToken(request).toString())
+                montoyaApi.logging().logToOutput("--------------------------------------------------")
+            }
+
+
         }
-        return ProxyResponseToBeSentAction.continueWith(interceptedResponse)
+        logger.debugLog( "Finished")
+
+
     }
-*/
+
     override fun name(): String {
-        return PluginName
+        return PLUGIN_NAME
     }
 
     override fun performAction(actionData: SessionHandlingActionData): ActionResult {
-        Logger.debugLog(this.javaClass.name, "=======================\nperformAction")
+        logger.debugLog(this.javaClass.name, "=======================\nperformAction")
         var request = actionData.request()
 
-        Logger.debugLog("---------------------------\nStage 1: Checking for Macros")
-        if(actionData.macroRequestResponses().size>0) {
-            Logger.debugLog("Found Macro Request/Response")
+        logger.debugLog("---------------------------\nStage 1: Checking for Macros")
+        if(actionData.macroRequestResponses().isNotEmpty()) {
+            logger.debugLog("Found Macro Request/Response")
             for (httpReqRes in actionData.macroRequestResponses()) {
                 if(httpReqRes.hasResponse())
-                    updateAccessTokenIfFound(httpReqRes.response().toString());
+                    updateAccessTokenIfFound(httpReqRes.response().toString())
             }
         }
         else
-            Logger.debugLog("No macro found")
+            logger.debugLog("No macro found")
 
-        Logger.debugLog("------------------------\nStage 2: Session Handling")
-        if (AccessToken.isNotEmpty() && !urlShouldBeIgnored(request)) {
-            Logger.debugLog("Access token non-empty: ${AccessToken}, valid URL (not ignore url): ${request.url()}")
-            if(HeaderNameSetting1.currentValue.isNotBlank()) {
-                Logger.debugLog("Access Token and Header1 Not Empty, adding header: ${HeaderNameSetting1.currentValue}: ${previewHeaderValue()}")
-                if (request.hasHeader(HeaderNameSetting1.currentValue))
-                    request =
-                        request.withUpdatedHeader(HeaderNameSetting1.currentValue, previewHeaderValue())
-                else
-                    request =
-                        request.withAddedHeader(HeaderNameSetting1.currentValue, previewHeaderValue())
-            }
-            else
-                Logger.debugLog("Skipping ${HeaderNameSetting1.currentValue} header, empty")
+        logger.debugLog("------------------------\nStage 2: Session Handling")
 
-            if(HeaderNameSetting2.currentValue.isNotBlank()) {
-                Logger.debugLog("Access Token and Header2 Not Empty, adding header: ${HeaderNameSetting2.currentValue}: ${previewHeaderValue()}")
-                if (request.hasHeader(HeaderNameSetting2.currentValue))
-                    request =
-                        request.withUpdatedHeader(HeaderNameSetting2.currentValue, previewHeaderValue(true))
-                else
-                    request =
-                        request.withAddedHeader(HeaderNameSetting2.currentValue, previewHeaderValue(true))
-            }
-            else
-                Logger.debugLog("Skipping ${HeaderNameSetting2.currentValue} header, empty")
-        }
+        request = updateRequestWithAccessToken(request)
 
-        Logger.debugLog("Done, returning")
+        logger.debugLog("Done, returning")
         return ActionResult.actionResult(request, actionData.annotations())
     }
 
+    fun updateRequestWithAccessToken(request: HttpRequest) : HttpRequest {
+        var newRequest = request
+        logger.debugLog("updating with access token: $accessToken")
+        if (accessToken.isNotEmpty() && !urlShouldBeIgnored(newRequest)) {
+            logger.debugLog("Access token non-empty: ${accessToken}, valid URL (not ignore url): ${newRequest.url()}")
+            if(settingsPanel.getString(SettingsName.HEADER_NAME_1.value).isNotBlank()) {
+                logger.debugLog("Access Token and Header1 Not Empty, adding header: ${settingsPanel.getString(SettingsName.HEADER_NAME_1.value)}: ${previewHeaderValue()}")
+                newRequest = if (newRequest.hasHeader(settingsPanel.getString(SettingsName.HEADER_NAME_1.value)))
+                    newRequest.withUpdatedHeader(settingsPanel.getString(SettingsName.HEADER_NAME_1.value), previewHeaderValue())
+                else
+                    newRequest.withAddedHeader(settingsPanel.getString(SettingsName.HEADER_NAME_1.value), previewHeaderValue())
+            }
+            else
+                logger.debugLog("Skipping ${settingsPanel.getString(SettingsName.HEADER_NAME_1.value)} header, empty")
+
+            if(settingsPanel.getString(SettingsName.HEADER_NAME_2.value).isNotBlank()) {
+                logger.debugLog("Access Token and Header2 Not Empty, adding header: ${settingsPanel.getString(SettingsName.HEADER_NAME_2.value)}: ${previewHeaderValue()}")
+                newRequest = if (newRequest.hasHeader(settingsPanel.getString(SettingsName.HEADER_NAME_2.value)))
+                    newRequest.withUpdatedHeader(settingsPanel.getString(SettingsName.HEADER_NAME_2.value), previewHeaderValue(true))
+                else
+                    newRequest.withAddedHeader(settingsPanel.getString(SettingsName.HEADER_NAME_2.value), previewHeaderValue(true))
+            }
+            else
+                logger.debugLog("Skipping ${settingsPanel.getString(SettingsName.HEADER_NAME_2.value)} header, empty")
+        }
+        return newRequest
+    }
+
     fun urlShouldBeIgnored(request: HttpRequest) : Boolean {
-        return ShouldIgnoreEndpointsSetting.currentValue && IgnoreEndpointsSetting.currentValue.isNotEmpty() && IgnoreEndpointsSetting.currentValue.contains(request.url())
+        return settingsPanel.getBoolean(SettingsName.SHOULD_IGNORE_ENDPOINTS.value)
+                && settingsPanel.getString(SettingsName.IGNORE_ENDPOINTS.value).isNotBlank()
+                && settingsPanel.getString(SettingsName.IGNORE_ENDPOINTS.value).toRegex().containsMatchIn(request.url())
     }
 
     fun updateAccessTokenIfFound(responseString: String)
     {
         //Logger.debugLog("response string:\n$responseString")
-        val pattern = Pattern.compile(AccessTokenPatternSetting.currentValue, Pattern.CASE_INSENSITIVE)
+        val pattern = Pattern.compile(settingsPanel.getString(SettingsName.ACCESS_TOKEN_PATTERN.value), Pattern.CASE_INSENSITIVE)
         val matcher = pattern.matcher(responseString)
         while (matcher.find() && matcher.groupCount() > 0) {
-            AccessToken = matcher.group(1)
-            Logger.debugLog("Found Access Token: $AccessToken")
+            accessToken = matcher.group(1)
+            logger.debugLog("Found Access Token: $accessToken")
         }
-    }
-
-    private fun previewFullHeader() : String {
-        return "${HeaderNameSetting2.currentValue}: ${previewHeaderValue()}\r\n${HeaderNameSetting1.currentValue}: ${previewHeaderValue()}"
     }
 
     private fun previewHeaderValue(secondHeader : Boolean = false) : String {
         val headerBuilder = StringBuilder()
         if(secondHeader) {
-            headerBuilder.append(HeaderValuePrefixSetting2.currentValue)
-            if(AccessToken.isEmpty())
+            headerBuilder.append(settingsPanel.getString(SettingsName.HEADER_VALUE_PREFIX_2.value))
+            if(accessToken.isEmpty())
                 headerBuilder.append("ACCESS TOKEN HERE")
             else
-                headerBuilder.append(AccessToken)
-            headerBuilder.append(HeaderValueSuffixSetting2.currentValue)
+                headerBuilder.append(accessToken)
+            headerBuilder.append(settingsPanel.getString(SettingsName.HEADER_VALUE_SUFFIX_2.value))
         }
         else {
-            headerBuilder.append(HeaderValuePrefixSetting1.currentValue)
-            if(AccessToken.isEmpty())
+            headerBuilder.append(settingsPanel.getString(SettingsName.HEADER_VALUE_PREFIX_1.value))
+            if(accessToken.isEmpty())
                 headerBuilder.append("ACCESS TOKEN HERE")
             else
-                headerBuilder.append(AccessToken)
-            headerBuilder.append(HeaderValueSuffixSetting1.currentValue)
+                headerBuilder.append(accessToken)
+            headerBuilder.append(settingsPanel.getString(SettingsName.HEADER_VALUE_SUFFIX_1.value))
         }
 
         return headerBuilder.toString()
     }
-/*
-    override fun handleResponseReceived(interceptedResponse: InterceptedResponse?): ProxyResponseReceivedAction {
-        interceptedResponse?.let {
-            updateAccessTokenIfFound(it.toString());
-        }
-        return ProxyResponseReceivedAction.continueWith(interceptedResponse);
-    }
 
-    override fun handleResponseToBeSent(interceptedResponse: InterceptedResponse?): ProxyResponseToBeSentAction {
-        return ProxyResponseToBeSentAction.continueWith(interceptedResponse);
-    }
-*/
     override fun handleHttpRequestToBeSent(requestToBeSent: HttpRequestToBeSent?): RequestToBeSentAction {
         return RequestToBeSentAction.continueWith(requestToBeSent)
     }
 
     override fun handleHttpResponseReceived(responseReceived: HttpResponseReceived?): ResponseReceivedAction {
-        if(PassiveNameSetting.currentValue)
+        if(settingsPanel.getBoolean(SettingsName.PASSIVE_NAME.value))
             responseReceived?.let {
-                updateAccessTokenIfFound(it.toString());
+                updateAccessTokenIfFound(it.toString())
             }
         return ResponseReceivedAction.continueWith(responseReceived)
+    }
+
+    override fun provideMenuItems(event: ContextMenuEvent?): List<Component?>? {
+        event?.let {
+            if(it.selectedRequestResponses().isNotEmpty() || !it.messageEditorRequestResponse().isEmpty) {
+                selectedRequestResponses = it.selectedRequestResponses()
+                messageEditorRequestResponse = it.messageEditorRequestResponse()
+                return listOf(testJMenu)
+            }
+        }
+        return super.provideMenuItems(event)
+    }
+
+    override fun provideMenuItems(event: WebSocketContextMenuEvent?): List<Component?>? {
+        return super.provideMenuItems(event)
+    }
+
+    override fun provideMenuItems(event: AuditIssueContextMenuEvent?): List<Component?>? {
+        return super.provideMenuItems(event)
     }
 }
