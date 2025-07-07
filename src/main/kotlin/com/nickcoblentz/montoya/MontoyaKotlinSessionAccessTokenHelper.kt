@@ -54,7 +54,7 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
 
         myExtensionSettings = MyExtensionSettings()
 
-        api.userInterface().registerSettingsPanel(myExtensionSettings?.settingsPanel)
+        api.userInterface().registerSettingsPanel(myExtensionSettings.settingsPanel)
 
         api.userInterface().registerContextMenuItemsProvider(this)
 
@@ -199,20 +199,13 @@ class MontoyaKotlinSessionAccessTokenHelper : BurpExtension, SessionHandlingActi
         return super.provideMenuItems(event)
     }
 
-    override fun provideMenuItems(event: WebSocketContextMenuEvent?): List<Component?>? {
-        return super.provideMenuItems(event)
-    }
-
-    override fun provideMenuItems(event: AuditIssueContextMenuEvent?): List<Component?>? {
-        return super.provideMenuItems(event)
-    }
 }
 
 class SettingsDelegateManager(private var settingsPanelBuilder : SettingsPanelBuilder) {
 
     var settingsPanel : SettingsPanelWithData? = null
 
-    fun stringSetting(name: String, defaultValue: String): ReadOnlyProperty<Any?, String> {
+    fun stringSetting(name: String, defaultValue: String): ReadOnlyProperty<Any, String> {
         settingsPanelBuilder.withSetting(SettingsPanelSetting.stringSetting(name, defaultValue))
 
         // This delegate will call the provider to get the panel only when the property is accessed.
@@ -222,7 +215,7 @@ class SettingsDelegateManager(private var settingsPanelBuilder : SettingsPanelBu
     /**
      * Creates and registers a Boolean setting delegate.
      */
-    fun booleanSetting(name: String, defaultValue: Boolean): ReadOnlyProperty<Any?, Boolean> {
+    fun booleanSetting(name: String, defaultValue: Boolean): ReadOnlyProperty<Any, Boolean> {
         settingsPanelBuilder.withSetting(SettingsPanelSetting.booleanSetting(name, defaultValue))
         return ReadOnlyProperty { _, _ -> settingsPanel?.getBoolean(name) ?: false}
     }
